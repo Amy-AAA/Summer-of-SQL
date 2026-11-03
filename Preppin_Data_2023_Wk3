@@ -1,0 +1,63 @@
+--Input the data
+--For the transactions file:
+--Filter the transactions to just look at DSB
+--These will be transactions that contain DSB in the Transaction Code field
+--Rename the values in the Online or In-person field, Online of the 1 values and In-Person for the 2 values
+--Change the date to be the quarter
+--Sum the transaction values for each quarter and for each Type of Transaction (Online or In-Person)
+--For the targets file:
+--Pivot the quarterly targets so we have a row for each Type of Transaction and each Quarter
+-- Rename the fields
+--Remove the 'Q' from the quarter field and make the data type numeric
+--Join the two datasets together
+--You may need more than one join clause!
+--Remove unnecessary fields
+--Calculate the Variance to Target for each row
+--Output the data
+
+SELECT
+transaction_code,
+CASE
+WHEN online_or_in_person=1 THEN 'Online'
+WHEN online_or_in_person=2 THEN 'In-Person'
+END as online_or_in_person,
+DATE_PART('quarter', DATE(LEFT(transaction_date,10), 'dd/MM/yyyy')) as quarter,
+SUM(value) as value
+FROM PD2023_WK01
+WHERE transaction_code like 'DSB%'
+GROUP BY DATE_PART('quarter', DATE(LEFT(transaction_date,10), 'dd/MM/yyyy')), online_or_in_person, transaction_code;
+
+
+SELECT
+online_or_in_person,
+REPLACE(quarter, 'Q', '')::int as quarter,
+target
+FROM PD2023_WK03_TARGETS
+UNPIVOT(target FOR quarter IN (Q1, Q2, Q3, Q4));
+
+
+--final output:
+WITH CTE as(
+SELECT
+CASE
+WHEN online_or_in_person=1 THEN 'Online'
+WHEN online_or_in_person=2 THEN 'In-Person'
+END as online_or_in_person,
+DATE_PART('quarter', DATE(LEFT(transaction_date,10), 'dd/MM/yyyy')) as quarter,
+SUM(value) as value
+FROM PD2023_WK01
+WHERE transaction_code like 'DSB%'
+GROUP BY CASE
+WHEN online_or_in_person=1 THEN 'Online'
+WHEN online_or_in_person=2 THEN 'In-Person'
+END, DATE_PART('quarter', DATE(LEFT(transaction_date,10), 'dd/MM/yyyy'))
+)
+SELECT 
+T.online_or_in_person,
+REPLACE(T.quarter, 'Q', '')::int as quarter,
+T.target,
+PD.value,
+PD.value - T.target as variance_to_target
+FROM PD2023_WK03_TARGETS as T
+UNPIVOT(target FOR quarter IN (Q1, Q2, Q3, Q4))
+INNER JOIN CTE as PD on T.online_or_in_person = PD.online_or_in_person AND REPLACE(T.quarter, 'Q', '')::int = PD.quarter;
